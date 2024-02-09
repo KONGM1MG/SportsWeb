@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.4.0/fabric.min.js"></script>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>上传图片演示</title>
+    <style>
+        canvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>上传图片</h1>
+        <img id="uploadedImage" src="{{ url_for('static', filename=fname) }}" onload="initCanvas()">
+        <canvas id="canvas"></canvas>
+        <button id="drawRectangle">绘制矩形</button>
+        <button id="saveRectangles">保存矩形</button>
+    </div>
+    <script>
+        var canvas = new fabric.Canvas('canvas');
+        var imgElement = document.getElementById('uploadedImage');
+        var rectList = [];
+
+        function initCanvas() {
+            canvas.setWidth(imgElement.width);
+            canvas.setHeight(imgElement.height);
+        }
+
+        var imgInstance = new fabric.Image(imgElement, {
+            left: 0,
+            top: 0,
+            selectable: false
+        });
+        canvas.add(imgInstance);
+
+        var isDown, origX, origY;
+
+        document.getElementById('drawRectangle').addEventListener('click', function () {
+            canvas.isDrawingMode = true;
+            canvas.on('mouse:down', function (o) {
+                isDown = true;
+                var pointer = canvas.getPointer(o.e);
+                origX = pointer.x;
+                origY = pointer.y;
+                var rect = new fabric.Rect({
+                    left: origX,
+                    top: origY,
+                    originX: 'left',
+                    originY: 'top',
+                    width: 0,
+                    height: 0,
+                    angle: 0,
+                    selectable: true,
+                    fill: 'rgba(255,0,0,0.3)',
+                    transparentCorners: false
+                });
+                canvas.add(rect);
+                rectList.push(rect);
+            });
+
+            canvas.on('mouse:move', function (o) {
+                if (!isDown) return;
+                var pointer = canvas.getPointer(o.e);
+
+                var rect = rectList[rectList.length - 1];
+                rect.set({ width: pointer.x - origX });
+                rect.set({ height: pointer.y - origY });
+
+                canvas.renderAll();
+            });
+
+            canvas.on('mouse:up', function (o) {
+                isDown = false;
+            });
+        });
+
+        document.getElementById('saveRectangles').addEventListener('click', function () {
+            var data = JSON.stringify(rectList.map(function (rect) {
+                return {
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                };
+            }));
+
+            // 使用 AJAX 将数据发送到后端
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/save_rectangles', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(data);
+        });
+    </script>
+</body>
+</html>

@@ -1,71 +1,87 @@
-# coding:utf-8
-
-from flask import Flask, render_template, request, redirect, url_for, make_response, jsonify, send_file
-from werkzeug.utils import secure_filename
 import os
-import cv2
-import time
-
-from datetime import timedelta
-
-# 设置允许的文件格式
-ALLOWED_EXTENSIONS = set(['png', 'jpg', 'JPG', 'PNG', 'bmp'])
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+from flask import Flask, render_template, request, flash, make_response, redirect, url_for, jsonify
+from werkzeug.utils import secure_filename
+from PIL import Image
 
 
 app = Flask(__name__)
-# 设置静态文件缓存过期时间
-app.SEND_FILE_MAX_AGE_DEFAULT = timedelta(seconds=1)
-# 保存边界框
-bounding_boxes = []
+app.config['SECRET_KEY'] = '123456'
 
-@app.route('/index', methods=['POST', 'GET'])  # 添加路由
-def upload():
-    # 全局变量
-    global bounding_boxes
+
+# 允许上传type
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', "PNG", "JPG", 'JPEG'])  # 大写的.JPG是不允许的
+# 用于存储矩形框数据的全局变量或容器
+rectangles = []
+
+# check type
+def allowed_file(filename):
+    return '.' in filename and filename.split('.', 1)[1] in ALLOWED_EXTENSIONS
+    # 圆括号中的1是分割次数
+
+
+# upload path
+UPLOAD_FOLDER = './images'
+
+
+@app.route('/', methods=['GET', 'POST'])
+def upload_file():
+    """"目前只支持上传英文名"""
     if request.method == 'POST':
-        f = request.files['file']
+        # 获取上传文件
+        file = request.files['file']
+        print(dir(file))
+        # 检查文件对象是否存在且合法
+        if file and allowed_file(file.filename):  # 哪里规定file都有什么属性
+            filename = secure_filename(file.filename)  # 把汉字文件名抹掉了，所以下面多一道检查
+            if filename != file.filename:
+                flash("only support ASCII name")
+                return render_template('upload.html')
+            # save
+            try:
+                file.save(os.path.join(UPLOAD_FOLDER, filename))  # 现在似乎不会出现重复上传同名文件的问题
+            except FileNotFoundError:
+                os.mkdir(UPLOAD_FOLDER)
+                file.save(os.path.join(UPLOAD_FOLDER, filename))
+            return redirect(url_for('update', fileName=filename))
+        else:
+            return 'Upload Failed'
+    else:  # GET方法
+        return render_template('upload.html')
 
-        if not (f and allowed_file(f.filename)):
-            return jsonify({"error": 1001, "msg": "请检查上传的图片类型，仅限于png、PNG、jpg、JPG、bmp"})
 
-        user_input = request.form.get("name")
+def render_photo_as_page(filename):
+    """每次调用都将上传的图片复制到static中"""
+    img = Image.open(os.path.join(UPLOAD_FOLDER, filename))  # 上传文件夹和static分离
+    img.save(os.path.join('./static/images', filename))  # 这里要求jpg还是png都必须保存成png，因为html里是写死的
+    result = {}
+    result["fileName"] = filename
+    return result
 
-        basepath = os.path.dirname(__file__)  # 当前文件所在路径
 
-        upload_path = os.path.join(basepath, 'static/images', secure_filename(f.filename))  # 注意：没有的文件夹一定要先创建，不然会提示没有该路径
-        # upload_path = os.path.join(basepath, 'static/images','test.jpg')  #注意：没有的文件夹一定要先创建，不然会提示没有该路径
-        f.save(upload_path)
-        # 清空边界框
-        bounding_boxes = []
-        print(f.filename)
-        # 使用Opencv转换一下图片格式和名称
-        img = cv2.imread(upload_path)
-        # cv2.rectangle(img, (50, 50), (200, 200), (0, 255, 0), 2)
-        cv2.imwrite(os.path.join(basepath, 'static/images', 'test.jpg'), img)
+@app.route('/upload/<path:fileName>', methods=['POST', 'GET'])
+def update(fileName):
+    """输入url加载图片，并返回预测值；上传图片，也会重定向到这里"""
+    result = render_photo_as_page(fileName)
+    return render_template('show.html', fname='images/' + fileName, result=result)
 
-        return render_template('image.html', userinput=user_input, val1=time.time())
 
-    return render_template('index.html')
+@app.route('/save_rectangles', methods=['POST'])
+def save_rectangles():
+    # 获取从前端发送过来的 JSON 数据
+    data = request.json
 
-@app.route('/processed_image')
-def processed_image():
-    # Display the processed image
-    return send_file('./static/images/processed_image.jpg', mimetype='image/jpg')
+    # 在这里你可以对接收到的矩形数据进行处理
+    # 例如，将其保存到全局变量或容器中
+    rectangles.extend(data)  # 直接将接收到的数据添加到列表中
+    print(rectangles)
+    # 返回一个成功的响应
+    return jsonify({'message': 'Rectangles saved successfully.'}), 200
 
-@app.route('/update_bounding_boxes', methods=['POST'])
-def update_bounding_boxes():
-    global bounding_boxes
 
-    # Receive bounding box coordinates from the client
-    data = request.get_json()
-    bounding_boxes.append(data)
-
-    return jsonify({"status": "success"})
+@app.route('/get_rectangles', methods=['GET'])
+def get_rectangles():
+    # 返回存储的矩形框数据给前端
+    return jsonify({'rectangles': rectangles}), 200
 
 if __name__ == '__main__':
-    # app.debug = True
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(debug=True)
