@@ -18,11 +18,13 @@
         <canvas id="canvas"></canvas>
         <button id="drawRectangle">绘制矩形</button>
         <button id="saveRectangles">保存矩形</button>
+        <button id="predict">预测</button>
     </div>
     <script>
         var canvas = new fabric.Canvas('canvas');
         var imgElement = document.getElementById('uploadedImage');
         var rectList = [];
+        var filename = '{{ fname }}';  // 将文件名从后端渲染的模板中获取，确保文件名正确
 
         function initCanvas() {
             canvas.setWidth(imgElement.width);
@@ -92,6 +94,15 @@
             xhr.open('POST', '/save_rectangles', true);
             xhr.setRequestHeader('Content-Type', 'application/json');
             xhr.send(data);
+
+        });
+        document.getElementById('predict').addEventListener('click', function () {
+            // 获取文件名
+            // 使用 AJAX 发送 POST 请求到后端预测端点，并传递文件名参数
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/predict', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify({ fileName: filename }));
         });
     </script>
 </body>
