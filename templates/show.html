@@ -24,7 +24,6 @@
         var canvas = new fabric.Canvas('canvas');
         var imgElement = document.getElementById('uploadedImage');
         var rectList = [];
-        var filename = '{{ fname }}';  // 将文件名从后端渲染的模板中获取，确保文件名正确
 
         function initCanvas() {
             canvas.setWidth(imgElement.width);
@@ -97,11 +96,32 @@
 
         });
         document.getElementById('predict').addEventListener('click', function () {
-            // 获取文件名
+            // 获取文件名，确保文件名正确
+            var filename = '{{ fname }}';  // 将文件名从后端渲染的模板中获取，确保文件名正确
+
             // 使用 AJAX 发送 POST 请求到后端预测端点，并传递文件名参数
             var xhr = new XMLHttpRequest();
+            console.log(filename);
             xhr.open('POST', '/predict', true);
             xhr.setRequestHeader('Content-Type', 'application/json');
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    // 如果请求成功，检查响应中是否有重定向地址
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.redirect) {
+                        // 如果有重定向地址，跳转到该地址
+                        window.location.href = response.redirect;
+                    } else {
+                        // 否则，根据需要进行其他处理
+                        console.log('Prediction completed');
+                    }
+                } else {
+                    // 处理请求失败的情况
+                    console.error('Request failed: ' + xhr.status);
+                }
+            };
+
             xhr.send(JSON.stringify({ fileName: filename }));
         });
     </script>

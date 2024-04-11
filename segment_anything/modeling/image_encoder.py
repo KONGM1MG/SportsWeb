@@ -108,8 +108,13 @@ class ImageEncoderViT(nn.Module):
         if self.pos_embed is not None:
             x = x + self.pos_embed
 
+        import time
+        start = time.time()
+
         for blk in self.blocks:
             x = blk(x)
+
+        print('Time taken for forward pass:', time.time() - start)
 
         x = self.neck(x.permute(0, 3, 1, 2))
 

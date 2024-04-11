@@ -64,6 +64,8 @@ predictor = SamPredictor(sam)
 # upload path
 UPLOAD_FOLDER = './images'
 
+globalFileName = ''
+
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -80,6 +82,10 @@ def upload_file():
             if filename != file.filename:
                 flash("only support ASCII name")
                 return render_template('upload.html')
+
+            global globalFileName
+            globalFileName = filename
+
             # save
             try:
                 file.save(os.path.join(UPLOAD_FOLDER, filename))  # 现在似乎不会出现重复上传同名文件的问题
@@ -127,18 +133,20 @@ def get_rectangles():
 
 
 @app.route('/predict', methods=['POST'])
-def predict(fileName):
+def predict():
     """预测"""
     # 读取图片
-    # file = request.files['file']
-    # fileName = file.filename
+    global globalFileName
+    fileName = globalFileName
+    #fileName = '0.png'
     print(fileName)
     img = cv2.imread(os.path.join(UPLOAD_FOLDER, fileName))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    print(img.shape)
     predictor.set_image(img)
     box = []
     for rect in rectangles:
-        box.append([rect['x'], rect['y'], rect['x'] + rect['width'], rect['y'] + rect['height']])
+        box.append([rect['left'], rect['top'], rect['left'] + rect['width'], rect['top'] + rect['height']])
     input_boxes = torch.tensor(box, device=predictor.device)
     transformed_boxes = predictor.transform.apply_boxes_torch(input_boxes, img.shape[:2])
     masks, _, _ = predictor.predict_torch(
@@ -152,15 +160,25 @@ def predict(fileName):
     # plt.imshow(img)
     for mask in masks:
         show_mask(mask.cpu().numpy(), plt.gca(), random_color=True)
-    plt.savefig(args.sav_path + '_mask_', fileName)
+    plt.savefig(os.path.join(UPLOAD_FOLDER, 'mask_' + fileName))
     plt.imshow(img)
     plt.axis('on')
     for mask in masks:
         show_mask(mask.cpu().numpy(), plt.gca(), random_color=True)
     for box in input_boxes:
         show_box(box.cpu().numpy(), plt.gca())
-    plt.savefig(args.sav_path + '_maskwithbox_', fileName)
+    plt.savefig(os.path.join(UPLOAD_FOLDER, 'mask_with_box_' + fileName))
+
+    # 处理完成后生成重定向的 URL
+    redirect_url = url_for('thanks')
+    # 返回包含重定向地址的 JSON 响应
+    return jsonify({'redirect': redirect_url})
+
+
+@app.route('/thanks')
+def thanks():
+    return render_template('thanks.html')
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
