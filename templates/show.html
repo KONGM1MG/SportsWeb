@@ -28,6 +28,7 @@
         function initCanvas() {
             canvas.setWidth(imgElement.width);
             canvas.setHeight(imgElement.height);
+            canvas.setBackgroundImage(imgElement.src, canvas.renderAll.bind(canvas));
         }
 
         var imgInstance = new fabric.Image(imgElement, {
@@ -77,7 +78,6 @@
                 isDown = false;
             });
         });
-
         document.getElementById('saveRectangles').addEventListener('click', function () {
             var data = JSON.stringify(rectList.map(function (rect) {
                 return {
